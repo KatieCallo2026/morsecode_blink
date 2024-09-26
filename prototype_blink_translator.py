@@ -1,6 +1,3 @@
-
-
-
 import cv2
 import cvzone
 from cvzone.FaceMeshModule import FaceMeshDetector
@@ -35,22 +32,36 @@ color = (255, 0, 255)
 blink_start_time = None
 dot_threshold = 350  # Short blink threshold in milliseconds (dot)
 dash_threshold = 650  # Long blink threshold in milliseconds (dash)
+start_stop_threshold = 4000  # 4000 milliseconds for starting/stopping a word
 letter_gap_threshold = 1700  # Time in ms to consider end of a letter
 blinks = []
 last_blink_time = None  # To track the time between blinks
 eyes_closed = False  # Flag to check if the eyes are closed
+is_building_word = False  # Flag to indicate if we are building a word
+current_word = []  # List to store letters for the current word
 
 def record_blink(start_time):
-    global blink_duration, blinks
+    global blink_duration, blinks, is_building_word, current_word
     blink_duration = (time.time() - start_time) * 1000  # Duration in milliseconds
     print(f"Blink Duration: {blink_duration} ms")  # Debugging information
 
-    if blink_duration <= dot_threshold:  # Short blink (dot)
-        blinks.append('.')
-        print("Recorded a dot (.)")
-    elif blink_duration >= dash_threshold:  # Long blink (dash)
-        blinks.append('-')
-        print("Recorded a dash (-)")
+    if blink_duration >= start_stop_threshold:  # Long blink (4000 ms) to start/stop a word
+        if is_building_word:
+            # End word building, decode word and reset
+            final_word = ''.join(current_word)
+            print(f"Final Word: {final_word}")
+            current_word = []  # Clear the word list for the next word
+        else:
+            print("Starting a new word...")
+        is_building_word = not is_building_word  # Toggle word-building mode
+
+    elif is_building_word:  # Only record dots/dashes while building a word
+        if blink_duration <= dot_threshold:  # Short blink (dot)
+            blinks.append('.')
+            print("Recorded a dot (.)")
+        elif blink_duration >= dash_threshold:  # Long blink (dash)
+            blinks.append('-')
+            print("Recorded a dash (-)")
     
     blink_start_time = None
 
@@ -111,10 +122,11 @@ while True:
 
         # If enough time has passed since the last blink, decode the letter
         if last_blink_time and (current_time - last_blink_time) > letter_gap_threshold:
-            if blinks:
+            if blinks and is_building_word:
                 morse_code = ''.join(blinks)
-                decoded_message = morse_to_text(morse_code)
-                print(f"Decoded Message: {decoded_message}")
+                decoded_letter = morse_to_text(morse_code)
+                print(f"Decoded Letter: {decoded_letter}")
+                current_word.append(decoded_letter)  # Add the decoded letter to the current word
                 blinks = []  # Clear the list for the next letter
             last_blink_time = None  # Reset after decoding
 
